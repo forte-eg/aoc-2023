@@ -1,9 +1,11 @@
 use std::{env, fs};
 use std::str::FromStr;
 
-const RED_MAX: i32 = 12;
-const GREEN_MAX: i32 = 13;
-const BLUE_MAX: i32 = 14;
+struct ColorFrequency {
+    red: i32,
+    green: i32,
+    blue: i32,
+}
 
 fn main() -> Result<(), ()> {
     let mut pwd = env::current_dir()
@@ -13,40 +15,34 @@ fn main() -> Result<(), ()> {
     let contents = fs::read_to_string(pwd.as_path())
         .map_err(|err| eprintln!("{err}"))?;
 
-    let mut possible_games = Vec::new();
+    let mut powers = Vec::new();
 
     for line in contents.lines() {
-        let prefix_len = "Game ".chars().count();
-        let game_number = &line[prefix_len..line.find(":").expect("well formed input")];
-
         let game = &line[line.find(":").expect("well formed input") + 2..];
         let sets = game.split(";");
-        let mut is_possible = true;
 
-        'set: for set in sets {
-            let results = set.split(",");
-            for result in results {
-                let mut result = result.trim().split(" ");
-                let count = i32::from_str(result.next().expect("well formed input").trim()).expect("well formed input");
-                let color = result.next().expect("well formed input").trim();
+        let mut freq = ColorFrequency { red: 0, green: 0, blue: 0 };
+
+        for set in sets {
+            let outcomes = set.split(",");
+            for outcome in outcomes {
+                let mut outcome = outcome.trim().split(" ");
+                let count = i32::from_str(outcome.next().expect("well formed input").trim())
+                    .expect("well formed input");
+                let color = outcome.next().expect("well formed input").trim();
                 match color {
-                    "red" => { is_possible = count <= RED_MAX },
-                    "green" => { is_possible = count <= GREEN_MAX },
-                    "blue" => { is_possible = count <= BLUE_MAX },
-                    _ => panic!("unknown color encountered")
-                }
-                if !is_possible {
-                    break 'set;
+                    "red" if count > freq.red => { freq.red = count },
+                    "green" if count > freq.green => { freq.green = count },
+                    "blue" if count > freq.blue => { freq.blue = count },
+                    _ => {}
                 }
             }
         }
 
-        if is_possible {
-            possible_games.push(game_number);
-            println!("{game_number} is possible");
-        }
+        let power = freq.red * freq.green * freq.blue;
+        powers.push(power);
     }
-    let sum: i32 = possible_games.iter().map(|number| i32::from_str(number).unwrap()).sum();
-    println!("sum is {sum}");
+    let sum: i32 = powers.iter().sum();
+    println!("sum of powers is {sum}");
     return Ok(())
 }
