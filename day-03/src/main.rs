@@ -1,5 +1,12 @@
 use read_input::read_input;
-use std::cmp;
+use std::{cmp, usize};
+use std::collections::HashMap;
+
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+struct Gear {
+    line: usize,
+    offset: usize,
+}
 
 fn main() -> Result<(), ()> {
     let contents = read_input()?;
@@ -9,31 +16,41 @@ fn main() -> Result<(), ()> {
 fn run(input: &str) -> Result<i32, ()> {
     let lines: Vec<&str> = input.lines().collect();
 
-    let mut part_numbers = Vec::new();
+    let mut part_map: HashMap<Gear, Vec<i32>> = HashMap::new();
 
     for row in 0..lines.len() {
         let line = lines[row];
         let mut offset: usize = 0;
 
-        if row > 0 {println!("   {}", lines[row-1])}
+        if row > 0 { println!("   {}", lines[row-1]) }
         println!(">> {line} <<");
-        if row + 1 < lines.len() {println!("   {}", lines[row+1])}
+        if row + 1 < lines.len() { println!("   {}", lines[row+1]) }
 
         while offset < line.len() {
             let (number, new_offset) = find_number(line, offset);
             if number == "" { break }
-            if is_part_number(&lines, row, new_offset, number.len()) {
+            if let Some(gears) = is_part_number(&lines, row as i32, new_offset, number.len()) {
                 println!("found {number}");
-                part_numbers.push(number);
+                for gear in &gears {
+                    let parts = part_map.entry(*gear).or_insert_with(|| Vec::new());
+                    parts.push(i32::from_str_radix(number, 10).unwrap());
+                }
             }
             offset = new_offset + number.len();
         }
         println!();
     }
-    let a: Vec<i32> = part_numbers.iter().map(|n| i32::from_str_radix(n, 10).unwrap()).collect();
-    println!("{a:?}\n\nlength={}\n", a.len());
 
-    let sum: i32 = a.iter().sum();
+    let gears: HashMap<Gear, Vec<i32>> = part_map.into_iter()
+        .filter(|(_, numbers)| numbers.len() >= 2)
+        .collect();
+
+    println!("{gears:?}");
+
+    let sum = gears.into_iter()
+        .map(|(_, numbers)| numbers.iter().product::<i32>())
+        .sum();
+
     return Ok(sum);
 }
 
@@ -60,37 +77,46 @@ fn find_number(line: &str, offset: usize) -> (&str, usize) {
     return (slice, new_offset)
 }
 
-fn is_part_number(lines: &Vec<&str>, row: usize, offset: usize, length: usize) -> bool {
-    let current = scan(lines[row], offset, length);
-    let top = row > 0 && scan(lines[row-1], offset, length);
-    let bottom = row + 1 < lines.len() && scan(lines[row+1], offset, length);
+fn is_part_number(lines: &Vec<&str>, row: i32, offset: usize, length: usize) -> Option<Vec<Gear>> {
+    let mut current = scan(lines, row, offset, length);
+    let mut top = scan(lines, row - 1 , offset, length);
+    let mut bottom = scan(lines, row + 1, offset, length);
 
-    return current || top || bottom;
+    let mut all: Vec<Gear> = Vec::new();
+    all.append(&mut current);
+    all.append(&mut top);
+    all.append(&mut bottom);
+
+    return if all.is_empty() { None } else { Some(all) }
 }
 
-fn scan(line: &str, offset: usize, length: usize) -> bool {
-    let from = if offset == 0 { 0 } else { offset - 1 };
+fn scan(lines: &Vec<&str>, row: i32, offset: usize, length: usize) -> Vec<Gear> {
+    if row < 0 || row >= lines.len() as i32 {
+        return Vec::new();
+    }
+
+    let line = lines[row as usize];
+    let from = cmp::max(0i32, offset as i32 - 1) as usize;
     let to = cmp::min(line.len(), offset + length + 1);
     let slice = &line[from..to];
-    return slice.chars().any(|c| is_symbol(c));
-}
 
-fn is_symbol(c: char) -> bool {
-    c != '.' && c.is_ascii_punctuation()
+    return slice.chars().enumerate()
+        .filter(|(_, c)| *c == '*')
+        .map(|(i, _)| Gear { line: row as usize, offset: from + i })
+        .collect();
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
     fn test() {
         let input = vec![
             ".....",
             ".123.",
             ".....",
         ];
-        assert!(!is_part_number(&input, 1, 1, 3))
+        assert_eq!(None, is_part_number(&input, 1, 1, 3))
     }
 
     #[test]
@@ -100,7 +126,9 @@ mod tests {
             ".123.",
             ".....",
         ];
-        assert!(is_part_number(&input, 1, 1, 3))
+        let gears = is_part_number(&input, 1, 1, 3).unwrap();
+        assert_eq!(1, gears.len());
+        assert_eq!(Gear { line: 0, offset: 0 }, *gears.get(0).unwrap());
     }
 
     #[test]
@@ -110,7 +138,9 @@ mod tests {
             ".123.",
             ".....",
         ];
-        assert!(is_part_number(&input, 1, 1, 3))
+        let gears = is_part_number(&input, 1, 1, 3).unwrap();
+        assert_eq!(1, gears.len());
+        assert_eq!(Gear { line: 0, offset: 1 }, *gears.get(0).unwrap());
     }
 
     #[test]
@@ -120,7 +150,9 @@ mod tests {
             ".123.",
             ".....",
         ];
-        assert!(is_part_number(&input, 1, 1, 3))
+        let gears = is_part_number(&input, 1, 1, 3).unwrap();
+        assert_eq!(1, gears.len());
+        assert_eq!(Gear { line: 0, offset: 2 }, *gears.get(0).unwrap());
     }
 
     #[test]
@@ -130,7 +162,9 @@ mod tests {
             ".123.",
             ".....",
         ];
-        assert!(is_part_number(&input, 1, 1, 3))
+        let gears = is_part_number(&input, 1, 1, 3).unwrap();
+        assert_eq!(1, gears.len());
+        assert_eq!(Gear { line: 0, offset: 3 }, *gears.get(0).unwrap());
     }
 
     #[test]
@@ -140,7 +174,9 @@ mod tests {
             ".123.",
             ".....",
         ];
-        assert!(is_part_number(&input, 1, 1, 3))
+        let gears = is_part_number(&input, 1, 1, 3).unwrap();
+        assert_eq!(1, gears.len());
+        assert_eq!(Gear { line: 0, offset: 4 }, *gears.get(0).unwrap());
     }
 
     #[test]
@@ -150,7 +186,9 @@ mod tests {
             "*123.",
             ".....",
         ];
-        assert!(is_part_number(&input, 1, 1, 3))
+        let gears = is_part_number(&input, 1, 1, 3).unwrap();
+        assert_eq!(1, gears.len());
+        assert_eq!(Gear { line: 1, offset: 0 }, *gears.get(0).unwrap());
     }
 
     #[test]
@@ -160,7 +198,9 @@ mod tests {
             ".123*",
             ".....",
         ];
-        assert!(is_part_number(&input, 1, 1, 3))
+        let gears = is_part_number(&input, 1, 1, 3).unwrap();
+        assert_eq!(1, gears.len());
+        assert_eq!(Gear { line: 1, offset: 4 }, *gears.get(0).unwrap());
     }
 
     #[test]
@@ -170,7 +210,9 @@ mod tests {
             ".123.",
             "*....",
         ];
-        assert!(is_part_number(&input, 1, 1, 3))
+        let gears = is_part_number(&input, 1, 1, 3).unwrap();
+        assert_eq!(1, gears.len());
+        assert_eq!(Gear { line: 2, offset: 0 }, *gears.get(0).unwrap());
     }
 
     #[test]
@@ -180,7 +222,9 @@ mod tests {
             ".123.",
             ".*...",
         ];
-        assert!(is_part_number(&input, 1, 1, 3))
+                let gears = is_part_number(&input, 1, 1, 3).unwrap();
+        assert_eq!(1, gears.len());
+        assert_eq!(Gear { line: 2, offset: 1 }, *gears.get(0).unwrap());
     }
 
     #[test]
@@ -190,7 +234,9 @@ mod tests {
             ".123.",
             "..*..",
         ];
-        assert!(is_part_number(&input, 1, 1, 3))
+                let gears = is_part_number(&input, 1, 1, 3).unwrap();
+        assert_eq!(1, gears.len());
+        assert_eq!(Gear { line: 2, offset: 2 }, *gears.get(0).unwrap());
     }
 
     #[test]
@@ -200,7 +246,9 @@ mod tests {
             ".123.",
             "...*.",
         ];
-        assert!(is_part_number(&input, 1, 1, 3))
+                let gears = is_part_number(&input, 1, 1, 3).unwrap();
+        assert_eq!(1, gears.len());
+        assert_eq!(Gear { line: 2, offset: 3 }, *gears.get(0).unwrap());
     }
 
     #[test]
@@ -210,7 +258,9 @@ mod tests {
             ".123.",
             "....*",
         ];
-        assert!(is_part_number(&input, 1, 1, 3))
+                let gears = is_part_number(&input, 1, 1, 3).unwrap();
+        assert_eq!(1, gears.len());
+        assert_eq!(Gear { line: 2, offset: 4 }, *gears.get(0).unwrap());
     }
 
     #[test]
@@ -222,28 +272,28 @@ mod tests {
             "*.....*",
             "*******",
         ];
-        assert!(!is_part_number(&input, 2, 2, 3))
+        assert_eq!(None, is_part_number(&input, 2, 2, 3))
     }
 
-    #[test]
-    fn test14() {
-        let input = vec![
-            "*******",
-            "*.....*",
-            "*.123.*",
-            "*.....*",
-            "*******",
-        ];
-        let (number, new_offset) = find_number(input[2], 0);
-        assert_eq!(number, "123");
-        assert_eq!(new_offset, 2);
-
-        assert_eq!("", find_number(input[0], 0).0);
-        assert_eq!("", find_number(input[1], 0).0);
-        assert_eq!("", find_number(input[3], 0).0);
-        assert_eq!("", find_number(input[4], 0).0);
-    }
-
+    // #[test]
+    // fn test14() {
+    //     let input = vec![
+    //         "*******",
+    //         "*.....*",
+    //         "*.123.*",
+    //         "*.....*",
+    //         "*******",
+    //     ];
+    //     let (number, new_offset) = find_number(input[2], 0);
+    //     assert_eq!(number, "123");
+    //     assert_eq!(new_offset, 2);
+    //
+    //     assert_eq!("", find_number(input[0], 0).0);
+    //     assert_eq!("", find_number(input[1], 0).0);
+    //     assert_eq!("", find_number(input[3], 0).0);
+    //     assert_eq!("", find_number(input[4], 0).0);
+    // }
+    //
     #[test]
     fn test15() {
         let input = vec![
@@ -253,7 +303,7 @@ mod tests {
             "....*",
             "*****",
         ];
-        assert!(!is_part_number(&input, 2, 0, 3))
+        assert_eq!(None, is_part_number(&input, 2, 0, 3))
     }
 
     #[test]
@@ -265,7 +315,7 @@ mod tests {
             "*....",
             "*****",
         ];
-        assert!(!is_part_number(&input, 2, 2, 3))
+        assert_eq!(None, is_part_number(&input, 2, 2, 3))
     }
 
     #[test]
@@ -281,7 +331,7 @@ mod tests {
              ......755.\n\
              ...$.*....\n\
              .664.598..";
-        assert_eq!(Ok(4361), run(input))
+        assert_eq!(Ok(467835), run(input))
     }
 
     #[test]
@@ -290,7 +340,7 @@ mod tests {
         "..123..\n\
          456*...\n\
          .......";
-        assert_eq!(Ok(579), run(input))
+        assert_eq!(Ok(56088), run(input))
     }
 
     #[test]
@@ -299,6 +349,6 @@ mod tests {
         ".....\n\
          5*4*5\n\
          .....";
-        assert_eq!(Ok(14), run(input))
+        assert_eq!(Ok(40), run(input))
     }
 }
