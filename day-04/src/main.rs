@@ -1,4 +1,3 @@
-use std::cmp;
 use read_input::read_input;
 
 struct Card {
@@ -7,55 +6,61 @@ struct Card {
 
 impl Card {
     fn parse(input: &str) -> Card {
-        fn to_ints(input: &str) -> Vec<i32> {
-            input.split_whitespace()
-                .map(|s| i32::from_str_radix(s, 10).unwrap())
-                .collect()
-        }
         let line = &input[input.chars().position(|c| c == ':').unwrap()+2..];
-        let parts: Vec<Vec<i32>> = line.split("|").into_iter().map(|s| to_ints(s)).collect();
+        let parts: Vec<Vec<&str>> = line.split("|").map(|s| s.split_whitespace().collect()).collect();
         let [winning, having] = &parts[0..2] else { panic!() };
-        let wins = having.iter()
-            .filter(|i| winning.contains(i))
-            .count();
+        let wins = having.iter().filter(|i| winning.contains(i)).count();
         Card { wins }
     }
 }
 
 fn main() -> Result<(), ()> {
     let contents = read_input()?;
-    let sum = run(&contents)?;
-    println!("sum: {sum}");
+    let cards = contents.lines().map(|s| Card::parse(s)).collect();
+
+    let silver = part1(&cards)?;
+    println!("silver: {silver}");
+
+    let gold = part2(&cards)?;
+    println!("gold: {gold}");
+
     Ok(())
 }
 
-fn run(input: &str) -> Result<i32, ()> {
-    let cards: Vec<Card> = input.lines()
-        .map(|s| Card::parse(s))
-        .collect();
+fn part1(cards: &Vec<Card>) -> Result<i32, ()> {
+    let result = cards.iter()
+        .map(|c| if c.wins > 0 { 1 << c.wins - 1 } else { 0 })
+        .sum::<i32>() ;
+    Ok(result)
+}
 
-    let sum = cards.len() + r_wins(&cards, 0, cards.len());
+fn part2(cards: &Vec<Card>) -> Result<i32, ()> {
+    let mut sum = 0;
+    for i in 0..cards.len() {
+        sum += process_card(&cards, i);
+    }
     Ok(sum as i32)
 }
 
-fn r_wins(cards: &Vec<Card>, mut i: usize, upper_bound: usize) -> usize {
-    let mut wins = 0;
-    while i < cmp::min(cards.len(), upper_bound) {
-        let card_wins = cards[i].wins;
-        wins += r_wins(cards, i + 1, i + 1 + card_wins);
-        wins += card_wins;
-        i += 1;
+fn process_card(cards: &Vec<Card>, i: usize) -> usize {
+    match cards[i].wins {
+        0 => { 1 },
+        wins => {
+            let mut cs = 1;
+            for j in i+1..i+1+wins {
+                if j >= cards.len() { break; }
+                cs += process_card(cards, j)
+            }
+            cs
+        }
     }
-    return wins;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn example() {
-        let input =
+    const INPUT: &str =
         "Card 1: 41 48 83 86 17 | 83 86  6 31 17  9 48 53\n\
          Card 2: 13 32 20 16 61 | 61 30 68 82 17 32 24 19\n\
          Card 3:  1 21 53 59 44 | 69 82 63 72 16 21 14  1\n\
@@ -63,6 +68,15 @@ mod tests {
          Card 5: 87 83 26 28 32 | 88 30 70 12 93 22 82 36\n\
          Card 6: 31 18 13 56 72 | 74 77 10 23 35 67 36 11";
 
-        assert_eq!(Ok(30), run(input));
+    #[test]
+    fn example1() {
+        let cards = INPUT.lines().map(|s| Card::parse(s)).collect();
+        assert_eq!(Ok(13), part1(&cards));
+    }
+
+    #[test]
+    fn example2() {
+        let cards = INPUT.lines().map(|s| Card::parse(s)).collect();
+        assert_eq!(Ok(30), part2(&cards));
     }
 }
