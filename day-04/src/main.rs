@@ -1,4 +1,26 @@
+use std::cmp;
 use read_input::read_input;
+
+struct Card {
+    pub wins: usize
+}
+
+impl Card {
+    fn parse(input: &str) -> Card {
+        fn to_ints(input: &str) -> Vec<i32> {
+            input.split_whitespace()
+                .map(|s| i32::from_str_radix(s, 10).unwrap())
+                .collect()
+        }
+        let line = &input[input.chars().position(|c| c == ':').unwrap()+2..];
+        let parts: Vec<Vec<i32>> = line.split("|").into_iter().map(|s| to_ints(s)).collect();
+        let [winning, having] = &parts[0..2] else { panic!() };
+        let wins = having.iter()
+            .filter(|i| winning.contains(i))
+            .count();
+        Card { wins }
+    }
+}
 
 fn main() -> Result<(), ()> {
     let contents = read_input()?;
@@ -8,33 +30,23 @@ fn main() -> Result<(), ()> {
 }
 
 fn run(input: &str) -> Result<i32, ()> {
-    let lines = input.lines();
+    let cards: Vec<Card> = input.lines()
+        .map(|s| Card::parse(s))
+        .collect();
 
-    let mut sum = 0;
-    for line in lines {
-        let line = &line[line.chars().position(|c| c == ':').unwrap()+2..];
-        let parts: Vec<&str> = line.split("|").collect();
-        let [winning, having] = parts[0..2] else { panic!() };
-
-        let winning = to_ints(winning);
-        let having = to_ints(having);
-
-        let hits = having.iter().fold(0, |acc, e| if winning.contains(e) { acc + 1 } else { acc } );
-
-        match hits {
-            0 => {}
-            _ => sum += 1 << (hits - 1)
-        }
-    }
-
-    return Ok(sum)
+    let sum = cards.len() + r_wins(&cards, 0, cards.len());
+    Ok(sum as i32)
 }
 
-fn to_ints(input: &str) -> Vec<i32> {
-    input.split(" ")
-        .filter(|s| s.trim() != "")
-        .map(|s| i32::from_str_radix(s.trim(), 10).unwrap())
-        .collect()
+fn r_wins(cards: &Vec<Card>, mut i: usize, upper_bound: usize) -> usize {
+    let mut wins = 0;
+    while i < cmp::min(cards.len(), upper_bound) {
+        let card_wins = cards[i].wins;
+        wins += r_wins(cards, i + 1, i + 1 + card_wins);
+        wins += card_wins;
+        i += 1;
+    }
+    return wins;
 }
 
 #[cfg(test)]
@@ -51,6 +63,6 @@ mod tests {
          Card 5: 87 83 26 28 32 | 88 30 70 12 93 22 82 36\n\
          Card 6: 31 18 13 56 72 | 74 77 10 23 35 67 36 11";
 
-        assert_eq!(Ok(13), run(input));
+        assert_eq!(Ok(30), run(input));
     }
 }
