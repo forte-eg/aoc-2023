@@ -1,4 +1,3 @@
-// use std::collections::HashMap;
 use read_input::read_input;
 
 struct QuickMapEntry {
@@ -52,26 +51,6 @@ impl QuickMap {
         key
     }
 }
-
-// struct CachedSearch {
-//     maps: Vec<QuickMap>,
-//     cache: HashMap<(i64, QuickMap), i64>,
-// }
-//
-// impl CachedSearch {
-//     fn new(maps: Vec<QuickMap>) -> CachedSearch {
-//         CachedSearch { maps, cache: HashMap::new() }
-//     }
-//
-//     fn lookup(&self, key: i64) -> i64 {
-//         let mut val = key;
-//         for map in &self.maps {
-//             val = map.get(val);
-//             if self.cache[(val, map)]
-//         }
-//         val
-//     }
-// }
 
 fn main() -> Result<(), ()> {
     let contents = read_input()?;
